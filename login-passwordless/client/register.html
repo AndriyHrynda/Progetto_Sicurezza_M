@@ -28,6 +28,24 @@
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <script>
+    const form = document.getElementById('form');
+    const server = 'http://localhost:3001';
+
+    form.addEventListener('submit', async function(event) {
+      event.preventDefault();
+
+      const email = document.getElementById('email').value;
+
+      const r = await fetch(`${server}/authentication-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      
+      localStorage.setItem('email', email);
+      window.location.href = '/verify.html';
+    });
+  </script>
 </body>
 </html>

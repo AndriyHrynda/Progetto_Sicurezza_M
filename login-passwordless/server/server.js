@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const { sendOTP } = require('./emailService');
 
 
 const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse
@@ -35,6 +36,14 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
+const otpSchema = new mongoose.Schema({
+    hashOtp: { type: String, required: true },
+    email: { type: String, required: true },
+    expires: { type: Date, required: true },
+    attempts: { type: Number, required: true, default: 3 }
+});
+const Otp = mongoose.model('Otp', otpSchema);
+
 mongoose.connect('mongodb://localhost:27017/login-passwordless', { });
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'Errore di connessione:'));
@@ -51,6 +60,64 @@ function toBase64url(obj) {
     return value;
   }));
 }
+
+function otpToHash(otp) {
+  return crypto.createHash('sha256').update(otp).digest('hex');
+}
+
+app.post('/authentication-email', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    console.log("Email mancante");
+    return res.status(400).json({ error: 'Email mancante' });
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000);
+  const hashOtp = otpToHash(String(otp));
+  const expires = new Date(Date.now() + 5 * 60 * 1000);
+
+  await Otp.deleteMany({ email: email });
+  await Otp.create({ email, hashOtp, expires });
+  sendOTP(email, otp);
+
+  return res.status(200).json({ success: true });
+});
+
+app.post('/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email) {
+    console.log("Email mancante");
+    return res.status(400).json({ error: 'Email mancante' });
+  }
+  if (!otp) {
+    console.log("Codice OTP mancante");
+    return res.status(400).json({ error: 'Codice OTP mancante' });
+  }
+
+  let record = await Otp.findOne({ email });
+  if (!record) {
+    return res.status(400).json({ error: 'Non esiste un codice OTP valido.' });
+  }
+  if (Date.now() >= record.expires) {
+    await Otp.deleteOne({ email });
+    return res.status(400).json({ error: 'Il codice OTP è scaduto.' });
+  }
+
+  if(record.hashOtp != otpToHash(otp)) {
+    record.attempts--;
+    if(record.attempts == 0) {
+      await Otp.deleteOne({ email });
+      return res.status(400).json({ error: 'Il codice OTP è errato. Tentativi finiti'});
+    } else {
+      await record.save();
+      return res.status(400).json({ error: 'Il codice OTP è errato. Tentativi rimasti: '+ record.attempts });
+    }
+  }
+
+  await Otp.deleteOne({ email });
+
+  return res.status(200).json({ success: true });
+});
 
 app.post('/generate-registration-options', async (req, res) => {
   const { email } = req.body;
@@ -219,6 +286,18 @@ app.post('/verify-authentication', async (req, res) => {
   }
 });
 
+app.get('/profile', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) return res.status(401).json({ message: 'Token mancante' });
+
+  const token = authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'Token mancante' });
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ message: 'Token non valido' });
+    res.json({ email: user.email });
+  });
+});
 
 const PORT = process.env.PORT || 3001;
 http.createServer(app).listen(PORT, () => {

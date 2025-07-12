@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verifica OTP</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1 class="title">Verifica OTP</h1>
+      <p class="subtitle">Inserisci il codice OTP che hai ricevuto via email</p>
+      <form class="form" id="form">
+        <label for="otp" class="label">Codice OTP</label>
+        <input
+          type="text"
+          id="otp"
+          name="otp"
+          class="input"
+          maxlength="6"
+          autocomplete="one-time-code"
+          pattern="\d{6}"
+          inputmode="numeric"
+          required
+          placeholder="******"
+          aria-label="Inserisci codice OTP a 6 cifre"
+        />
+        <input type="hidden" id="email" name="email"/>
+        <button type="submit" class="button">Verifica</button>
+        <p id="message" class="subtitle"></p>
+      </form>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
